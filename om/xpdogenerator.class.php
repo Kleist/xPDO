@@ -1,7 +1,7 @@
 <?php
 /*
  * Copyright 2006, 2007, 2008, 2009 by  Jason Coward <xpdo@opengeek.com>
- * 
+ *
  * This file is part of xPDO.
  *
  * xPDO is free software; you can redistribute it and/or modify it under the
@@ -37,32 +37,97 @@
  * @subpackage om
  */
 class xPDOGenerator {
-    var $manager= null;
-    var $schemaManager= null;
+    /**
+     * @var xPDOManager $manager A reference to the xPDOManager using this
+     * generator.
+     */
+    public $manager= null;
+    /**
+     * @var xPDOSchemaManager $schemaManager
+     */
+    public $schemaManager= null;
+    /**
+     * @var xmlParser $xmlParser
+     */
+    public $xmlParser= null;
+    /**
+     * @var string $outputDir The absolute path to output the class and map
+     * files to.
+     */
+    public $outputDir= '';
+    /**
+     * @var string $schemaFile An absolute path to the schema file.
+     */
+    public $schemaFile= '';
+    /**
+     * @var string $schemaContent The stored content of the newly-created schema
+     * file.
+     */
+    public $schemaContent= '';
+    /**
+     * @var string $classTemplate The class template string to build the class
+     * files from.
+     */
+    public $classTemplate= '';
+    /**
+     * @var string $platformTemplate The class platform template string to build
+     * the class platform files from.
+     */
+    public $platformTemplate= '';
+    /**
+     * @var string $mapHeader The map header string to build the map files from.
+     */
+    public $mapHeader= '';
+    /**
+     * @var string $mapFooter The map footer string to build the map files from.
+     */
+    public $mapFooter= '';
+    /**
+     * @var array $model The stored model array.
+     */
+    public $model= array ();
+    /**
+     * @var array $classes The stored classes array.
+     */
+    public $classes= array ();
+    /**
+     * @var array $map The stored map array.
+     */
+    public $map= array ();
 
-    var $xmlParser= null;
-    var $outputDir= '';
-    var $schemaFile= '';
-    var $schemaContent= '';
-    var $classTemplate= '';
-    var $platformTemplate= '';
-    var $mapHeader= '';
-    var $mapFooter= '';
-    var $model= array ();
-    var $classes= array ();
-    var $map= array ();
+    /**
+     * @var string $className A placeholder for the current class name.
+     */
+    public $className= '';
+    /**
+     * @var string $fieldKey A placeholder for the current field key.
+     */
+    public $fieldKey= '';
 
-    var $className= '';
-    var $fieldKey= '';
-
-    function xPDOGenerator(& $manager) {
-        $this->__construct($manager);
-    }
-    function __construct(& $manager) {
+    /**
+     * Constructor
+     *
+     * @access protected
+     * @param xPDOManager &$manager A reference to a valid xPDOManager instance.
+     * @return xPDOGenerator
+     */
+    public function __construct(& $manager) {
         $this->manager= & $manager;
     }
 
-    function getTableName($string, $prefix= '', $prefixRequired= false) {
+    /**
+     * Formats a class name to a specific value, stripping the prefix if
+     * specified.
+     *
+     * @access public
+     * @param string $string The name to format.
+     * @param string $prefix If specified, will strip the prefix out of the
+     * first argument.
+     * @param boolean $prefixRequired If true, will return a blank string if the
+     * prefix specified is not found.
+     * @return string The formatting string.
+     */
+    public function getTableName($string, $prefix= '', $prefixRequired= false) {
         if (!empty($prefix) && strpos($string, $prefix) === 0) {
             $string= substr($string, strlen($prefix));
         }
@@ -72,7 +137,15 @@ class xPDOGenerator {
         return $string;
     }
 
-    function getClassName($string) {
+    /**
+     * Gets a class name from a table name by splitting the string by _ and
+     * capitalizing each token.
+     *
+     * @access public
+     * @param string $string The table name to format.
+     * @return string The formatted string.
+     */
+    public function getClassName($string) {
         if (is_string($string) && $strArray= explode('_', $string)) {
             $return= '';
             while (list($k, $v)= each($strArray)) {
@@ -83,8 +156,16 @@ class xPDOGenerator {
         return trim($string);
     }
 
-    function getPhpType($dbtype) {
+    /**
+     * Gets the PHP field type based upon the specified database type.
+     *
+     * @access public
+     * @param string $dbtype The database field type to convert.
+     * @return string The associated PHP type
+     */
+    public function getPhpType($dbtype) {
         $dbtype= strtoupper($dbtype);
+        $phptype = '';
         foreach ($this->manager->dbtypes as $key => $type) {
             if (in_array($dbtype, $type)) {
                 $phptype= $key;
@@ -93,14 +174,30 @@ class xPDOGenerator {
         }
         return $phptype;
     }
-    function getDefault($value) {
+
+    /**
+     * Format the passed default value as an XML attribute.
+     *
+     * @access public
+     * @param string $value The value to encapsulate in the default tag.
+     * @return string The parsed XML string
+     */
+    public function getDefault($value) {
         $return= '';
         if ($value !== null) {
             $return= ' default="'.$value.'"';
         }
         return $return;
     }
-    function getIndex($index) {
+
+    /**
+     * Format the passed database index value as an XML attribute.
+     *
+     * @access public
+     * @param string $index The DB representation string of the index
+     * @return string The formatted XML attribute string
+     */
+    public function getIndex($index) {
         switch ($index) {
             case 'PRI':
                 $index= 'pk';
@@ -133,18 +230,18 @@ class xPDOGenerator {
      * @param boolean $compile Create compiled copies of the classes and maps from the schema.
      * @return boolean True on success, false on failure.
      */
-    function parseSchema($schemaFile, $outputDir= '', $compile= false) {
+    public function parseSchema($schemaFile, $outputDir= '', $compile= false) {
         $this->schemaFile= $schemaFile;
         $this->classTemplate= $this->getClassTemplate();
         if (!is_file($schemaFile)) {
-            $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not find specified XML schema file {$schemaFile}");
+            $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not find specified XML schema file {$schemaFile}");
             return false;
         } else {
             $fileContent= @ file($schemaFile);
             $this->schemaContent= implode('', $fileContent);
         }
 
-        // Create the parser and set handlers.
+        /* Create the parser and set handlers. */
         $this->xmlParser= xml_parser_create('UTF-8');
 
         xml_set_object($this->xmlParser, $this);
@@ -153,15 +250,15 @@ class xPDOGenerator {
         xml_set_element_handler($this->xmlParser, '_handleOpenElement', '_handleCloseElement');
         xml_set_character_data_handler($this->xmlParser, "_handleCData");
 
-        // Parse it.
+        /* Parse it. */
         if (!xml_parse($this->xmlParser, $this->schemaContent)) {
             $ln= xml_get_current_line_number($this->xmlParser);
             $msg= xml_error_string(xml_get_error_code($this->xmlParser));
-            $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Error parsing XML schema on line $ln: $msg");
+            $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Error parsing XML schema on line $ln: $msg");
             return false;
         }
 
-        // Free up the parser and clear memory
+        /* Free up the parser and clear memory */
         xml_parser_free($this->xmlParser);
         unset ($this->xmlParser);
 
@@ -178,7 +275,15 @@ class xPDOGenerator {
         return true;
     }
 
-    function _handleOpenElement(& $parser, & $element, & $attributes) {
+    /**
+     * Handles formatting of the open XML element.
+     *
+     * @access private
+     * @param xmlParser &$parser
+     * @param string &$element
+     * @param array &$attributes
+     */
+    protected function _handleOpenElement(& $parser, & $element, & $attributes) {
         $element= strtolower($element);
         switch ($element) {
             case 'model' :
@@ -302,11 +407,29 @@ class xPDOGenerator {
         }
     }
 
-    function _handleCloseElement(& $parser, & $element) {}
+    /**
+     * Handles the closing of XML tags.
+     *
+     * @access private
+     */
+    protected function _handleCloseElement(& $parser, & $element) {}
 
-    function _handleCData(& $parser, & $data) {}
+    /**
+     * Handles the XML CDATA tags
+     *
+     * @access private
+     */
+    protected function _handleCData(& $parser, & $data) {}
 
-    function outputClasses($path) {
+
+    /**
+     * Write the generated class files to the specified path.
+     *
+     * @access public
+     * @param string $path An absolute path to write the generated class files
+     * to.
+     */
+    public function outputClasses($path) {
         $newClassGeneration= false;
         $newPlatformGeneration= false;
         $platform= $this->model['platform'];
@@ -354,19 +477,19 @@ class xPDOGenerator {
                 if (!file_exists($fileName)) {
                     if ($file= @ fopen($fileName, 'wb')) {
                         if (!fwrite($file, $fileContent)) {
-                            $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not write to file: {$fileName}");
+                            $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not write to file: {$fileName}");
                         }
                         $newClass= true;
                         @fclose($file);
                     } else {
-                        $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not open or create file: {$fileName}");
+                        $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not open or create file: {$fileName}");
                     }
                 } else {
                     $newClass= false;
-                    $this->manager->xpdo->log(XPDO_LOG_LEVEL_INFO, "Skipping {$fileName}; file already exists.\nMove existing class files to regenerate them.");
+                    $this->manager->xpdo->log(xPDO::LOG_LEVEL_INFO, "Skipping {$fileName}; file already exists.\nMove existing class files to regenerate them.");
                 }
             } else {
-                $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not open or create dir: {$path}");
+                $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not open or create dir: {$path}");
             }
             $fileContent= str_replace(array_keys($replaceVars), array_values($replaceVars), $this->getClassPlatformTemplate($platform));
             if (is_dir($ppath)) {
@@ -374,23 +497,29 @@ class xPDOGenerator {
                 if (!file_exists($fileName)) {
                     if ($file= @ fopen($fileName, 'wb')) {
                         if (!fwrite($file, $fileContent)) {
-                            $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not write to file: {$fileName}");
+                            $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not write to file: {$fileName}");
                         }
                         @fclose($file);
                     } else {
-                        $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not open or create file: {$fileName}");
+                        $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not open or create file: {$fileName}");
                     }
                 } else {
-                    $this->manager->xpdo->log(XPDO_LOG_LEVEL_INFO, "Skipping {$fileName}; file already exists.\nMove existing class files to regenerate them.");
-                    if ($newClassGeneration || $newClass) $this->manager->xpdo->log(XPDO_LOG_LEVEL_WARN, "IMPORTANT: {$fileName} already exists but you appear to have generated classes with an older xPDO version.  You need to edit your class definition in this file to extend {$className} rather than {$classDef['extends']}.");
+                    $this->manager->xpdo->log(xPDO::LOG_LEVEL_INFO, "Skipping {$fileName}; file already exists.\nMove existing class files to regenerate them.");
+                    if ($newClassGeneration || $newClass) $this->manager->xpdo->log(xPDO::LOG_LEVEL_WARN, "IMPORTANT: {$fileName} already exists but you appear to have generated classes with an older xPDO version.  You need to edit your class definition in this file to extend {$className} rather than {$classDef['extends']}.");
                 }
             } else {
-                $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not open or create dir: {$path}");
+                $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not open or create dir: {$path}");
             }
         }
     }
 
-    function outputMaps($path) {
+    /**
+     * Write the generated class maps to the specified path.
+     *
+     * @access public
+     * @param string $path An absolute path to write the generated maps to.
+     */
+    public function outputMaps($path) {
         if (!is_dir($path)) {
             mkdir($path, 0777);
         }
@@ -427,40 +556,49 @@ class xPDOGenerator {
             }
             $fileContent= str_replace(array_keys($replaceVars), array_values($replaceVars), $this->getMapHeader());
             $fileContent.= "\n\$xpdo_meta_map['$className']= " . var_export($map, true) . ";\n";
-            if (isset ($map['aggregates'])) $fileContent.= "if (XPDO_PHP4_MODE) \$xpdo_meta_map['$className']['aggregates']= array_merge(\$xpdo_meta_map['$className']['aggregates'], array_change_key_case(\$xpdo_meta_map['$className']['aggregates']));\n";
-            if (isset ($map['composites'])) $fileContent.= "if (XPDO_PHP4_MODE) \$xpdo_meta_map['$className']['composites']= array_merge(\$xpdo_meta_map['$className']['composites'], array_change_key_case(\$xpdo_meta_map['$className']['composites']));\n";
-            $fileContent.= "\$xpdo_meta_map['$lcClassName']= & \$xpdo_meta_map['$className'];\n";
             $fileContent.= str_replace(array_keys($replaceVars), array_values($replaceVars), $this->getMapFooter());
             if (is_dir($path)) {
                 if ($file= @ fopen($fileName, 'wb')) {
                     if (!fwrite($file, $fileContent)) {
-                        $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not write to file: {$fileName}");
+                        $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not write to file: {$fileName}");
                     }
                     fclose($file);
                 } else {
-                    $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not open or create file: {$fileName}");
+                    $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not open or create file: {$fileName}");
                 }
             } else {
-                $this->manager->xpdo->log(XPDO_LOG_LEVEL_ERROR, "Could not open or create dir: {$path}");
+                $this->manager->xpdo->log(xPDO::LOG_LEVEL_ERROR, "Could not open or create dir: {$path}");
             }
         }
     }
 
-    function compile($path= '') {
+    /**
+     * Compile the packages into a single file for quicker loading.
+     *
+     * @todo Implement this to compile packages into a single file for quicker
+     * loading
+     *
+     * @access public
+     * @param string $path The absolute path to compile into.
+     * @return boolean True if the compiling went successfully.
+     */
+    public function compile($path= '') {
         $compiled= false;
-        //TODO: implement this to compile packages into a single file for quicker loading
         return $compiled;
     }
 
-    function getClassTemplate() {
+    /**
+     * Return the class template for the class files.
+     *
+     * @access public
+     * @return string The class template.
+     */
+    public function getClassTemplate() {
         if ($this->classTemplate) return $this->classTemplate;
         $template= <<<EOD
 <?php
 class [+class+] extends [+extends+] {
-    function [+class+](& \$xpdo) {
-        \$this->__construct(\$xpdo);
-    }
-    function __construct(& \$xpdo) {
+    public function __construct(& \$xpdo) {
         parent :: __construct(\$xpdo);
     }
 }
@@ -469,16 +607,19 @@ EOD;
         return $template;
     }
 
-    function getClassPlatformTemplate($platform) {
+    /**
+     * Return the class platform template for the class files.
+     *
+     * @access public
+     * @return string The class platform template.
+     */
+    public function getClassPlatformTemplate($platform) {
         if ($this->platformTemplate) return $this->platformTemplate;
         $template= <<<EOD
 <?php
 require_once (strtr(realpath(dirname(dirname(__FILE__))), '\\\\', '/') . '/[+class-lowercase+].class.php');
 class [+class+]_$platform extends [+class+] {
-    function [+class+]_$platform(& \$xpdo) {
-        \$this->__construct(\$xpdo);
-    }
-    function __construct(& \$xpdo) {
+    public function __construct(& \$xpdo) {
         parent :: __construct(\$xpdo);
     }
 }
@@ -487,7 +628,13 @@ EOD;
         return $template;
     }
 
-    function getMapHeader() {
+    /**
+     * Gets the map header template.
+     *
+     * @access public
+     * @return string The map header template.
+     */
+    public function getMapHeader() {
         if ($this->mapHeader) return $this->mapHeader;
         $header= <<<EOD
 <?php
@@ -495,7 +642,13 @@ EOD;
         return $header;
     }
 
-    function getMapFooter() {
+    /**
+     * Gets the map footer template.
+     *
+     * @access public
+     * @return string The map footer template.
+     */
+    public function getMapFooter() {
         if ($this->mapFooter) return $this->mapFooter;
         return '';
     }

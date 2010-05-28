@@ -1,7 +1,7 @@
 <?php
 /*
  * Copyright 2006, 2007, 2008, 2009 by  Jason Coward <xpdo@opengeek.com>
- * 
+ *
  * This file is part of xPDO.
  *
  * xPDO is free software; you can redistribute it and/or modify it under the
@@ -41,10 +41,7 @@ include_once (strtr(realpath(dirname(__FILE__)), '\\', '/') . '/../xpdogenerator
  * @subpackage om.mysql
  */
 class xPDOGenerator_mysql extends xPDOGenerator {
-    function xPDOGenerator_mysql(& $manager) {
-        $this->__construct($manager);
-    }
-    function __construct(& $manager) {
+    public function __construct(& $manager) {
         parent :: __construct($manager);
     }
 
@@ -66,13 +63,13 @@ class xPDOGenerator_mysql extends xPDOGenerator {
      * specified tablePrefix; if tablePrefix is empty, this is ignored.
      * @return boolean True on success, false on failure.
      */
-    function writeSchema($schemaFile, $package= '', $baseClass= '', $tablePrefix= '', $restrictPrefix= false) {
+    public function writeSchema($schemaFile, $package= '', $baseClass= '', $tablePrefix= '', $restrictPrefix= false) {
         if (empty ($package))
             $package= $this->manager->xpdo->package;
         if (empty ($baseClass))
             $baseClass= 'xPDOObject';
         if (empty ($tablePrefix))
-            $tablePrefix= $this->manager->xpdo->config['table_prefix'];
+            $tablePrefix= $this->manager->xpdo->config[xPDO::OPT_TABLE_PREFIX];
         $xmlContent= "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
         $xmlContent .= "<model package=\"{$package}\" baseClass=\"{$baseClass}\" platform=\"mysql\" defaultEngine=\"MyISAM\">\n";
         //read list of tables
@@ -80,8 +77,8 @@ class xPDOGenerator_mysql extends xPDOGenerator {
         $tableLike= ($tablePrefix && $restrictPrefix) ? " LIKE '{$tablePrefix}%'" : '';
         $tablesStmt= $this->manager->xpdo->prepare("SHOW TABLES FROM {$dbname}{$tableLike}");
         $tablesStmt->execute();
-        $tables= $tablesStmt->fetchAll(PDO_FETCH_NUM);
-        if ($this->manager->xpdo->getDebug() === true) $this->manager->xpdo->log(XPDO_LOG_LEVEL_DEBUG, print_r($tables, true));
+        $tables= $tablesStmt->fetchAll(PDO::FETCH_NUM);
+        if ($this->manager->xpdo->getDebug() === true) $this->manager->xpdo->log(xPDO::LOG_LEVEL_DEBUG, print_r($tables, true));
         foreach ($tables as $table) {
             $xmlObject= '';
             $xmlFields= '';
@@ -92,8 +89,8 @@ class xPDOGenerator_mysql extends xPDOGenerator {
             $extends= $baseClass;
             $fieldsStmt= $this->manager->xpdo->prepare("SHOW COLUMNS FROM `{$table[0]}`");
             $fieldsStmt->execute();
-            $fields= $fieldsStmt->fetchAll(PDO_FETCH_ASSOC);
-            if ($this->manager->xpdo->getDebug() === true) $this->manager->xpdo->log(XPDO_LOG_LEVEL_DEBUG, print_r($fields, true));
+            $fields= $fieldsStmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($this->manager->xpdo->getDebug() === true) $this->manager->xpdo->log(xPDO::LOG_LEVEL_DEBUG, print_r($fields, true));
             foreach ($fields as $field) {
                 $Field= '';
                 $Type= '';
@@ -141,7 +138,7 @@ class xPDOGenerator_mysql extends xPDOGenerator {
         }
         $xmlContent .= "</model>\n";
         if ($this->manager->xpdo->getDebug() === true) {
-           $this->manager->xpdo->log(XPDO_LOG_LEVEL_DEBUG, $xmlContent);
+           $this->manager->xpdo->log(xPDO::LOG_LEVEL_DEBUG, $xmlContent);
         }
         $file= fopen($schemaFile, 'wb');
         $written= fwrite($file, $xmlContent);

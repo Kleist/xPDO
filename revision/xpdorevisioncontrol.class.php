@@ -36,19 +36,8 @@
   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
   SOFTWARE.
  **/
+
 class xPDORevisionControl {
-    /**#@+
-     * Construct a new xPDORevisionControl instance.
-     *
-     * @return xPDORevisionControl
-     */
-    function xPDORevisionControl() {
-        $this->__construct();
-    }
-    /** @ignore */
-    function __construct() {}
-    /**#@-*/
-    
     /**
      * Computes the difference between two string linewise. 
      * The output is the same format

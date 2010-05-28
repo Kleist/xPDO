@@ -1,7 +1,7 @@
 <?php
 /*
  * Copyright 2006, 2007, 2008, 2009 by  Jason Coward <xpdo@opengeek.com>
- * 
+ *
  * This file is part of xPDO.
  *
  * xPDO is free software; you can redistribute it and/or modify it under the
@@ -47,9 +47,6 @@ class xPDOManager_mysql extends xPDOManager {
      *
      * @param object $xpdo A reference to a specific modDataSource instance.
      */
-    function xPDOManager_mysql(& $xpdo) {
-        $this->__construct($xpdo);
-    }
     function __construct(& $xpdo) {
         parent :: __construct($xpdo);
         $this->dbtypes['integer']= array('INT','INTEGER','TINYINT','BOOLEAN','SMALLINT','MEDIUMINT','BIGINT');
@@ -72,7 +69,7 @@ class xPDOManager_mysql extends xPDOManager {
      * @param array $containerOptions An array of options for controlling the creation of the container.
      * @return boolean True only if the database is created successfully.
      */
-    function createSourceContainer($dsnArray, $username= '', $password= '', $containerOptions= array ()) {
+    public function createSourceContainer($dsnArray, $username= '', $password= '', $containerOptions= array ()) {
         $created= false;
         if (is_array($dsnArray)) {
             $sql= 'CREATE DATABASE `' . $dsnArray['dbname'] . '`';
@@ -83,8 +80,8 @@ class xPDOManager_mysql extends xPDOManager {
             if ($conn= mysql_connect($dsnArray['host'], $username, $password, true)) {
                 if (!$rt= @ mysql_select_db($dsnArray['dbname'], $conn)) {
                     @ mysql_query($sql, $conn);
-                    $errorNo= @ mysql_errno($conn);
-                    $created= $errorNo ? false : true;
+                $errorNo= @ mysql_errno($conn);
+                $created= $errorNo ? false : true;
                 }
             }
         }
@@ -100,7 +97,7 @@ class xPDOManager_mysql extends xPDOManager {
      * @return int Returns 1 on successful drop, 0 on failure, and -1 if the db
      * does not exist.
      */
-    function removeSourceContainer() {
+    public function removeSourceContainer() {
         $removed= 0;
         if ($dsnArray= & $this->xpdo->config) {
             $sql= 'DROP DATABASE `' . $dsnArray['dbname'] . '`';
@@ -125,16 +122,16 @@ class xPDOManager_mysql extends xPDOManager {
      * @return int Returns 1 on successful drop, 0 on failure, and -1 if the table
      * does not exist.
      */
-    function removeObjectContainer($className) {
+    public function removeObjectContainer($className) {
         $removed= 0;
         if ($instance= $this->xpdo->newObject($className)) {
             $sql= 'DROP TABLE ' . $this->xpdo->getTableName($className);
             $removed= $this->xpdo->exec($sql);
-            if (!$removed && $this->xpdo->errorCode() !== '' && $this->xpdo->errorCode() !== PDO_ERR_NONE) {
-                $this->xpdo->log(XPDO_LOG_LEVEL_ERROR, 'Could not drop table ' . $className . "\nSQL: {$sql}\nERROR: " . print_r($this->xpdo->pdo->errorInfo(), true));
+            if (!$removed && $this->xpdo->errorCode() !== '' && $this->xpdo->errorCode() !== PDO::ERR_NONE) {
+                $this->xpdo->log(xPDO::LOG_LEVEL_ERROR, 'Could not drop table ' . $className . "\nSQL: {$sql}\nERROR: " . print_r($this->xpdo->pdo->errorInfo(), true));
             } else {
                 $removed= true;
-                $this->xpdo->log(XPDO_LOG_LEVEL_INFO, 'Dropped table' . $className . "\nSQL: {$sql}\n");
+                $this->xpdo->log(xPDO::LOG_LEVEL_INFO, 'Dropped table' . $className . "\nSQL: {$sql}\n");
             }
         }
         return $removed;
@@ -151,15 +148,17 @@ class xPDOManager_mysql extends xPDOManager {
      * @param string $className The class of object to create a source container
      * for.
      */
-    function createObjectContainer($className) {
+    public function createObjectContainer($className) {
         $created= false;
         if ($instance= $this->xpdo->newObject($className)) {
-            $tableName= $instance->_table;
-            $exists= $this->xpdo->query("SELECT COUNT(*) FROM {$tableName}");
-            if (is_object($exists) && $exists->fetchAll()) {
+            $tableName= $this->xpdo->getTableName($className);
+            $existsStmt = $this->xpdo->prepare("SELECT COUNT(*) FROM {$tableName}");
+            $exists = $existsStmt->execute();
+            if ($exists && $existsStmt->fetchAll()) {
                 return true;
             }
-            $tableType= isset($instance->_tableMeta['engine']) ? $instance->_tableMeta['engine'] : 'MyISAM';
+            $tableMeta= $this->xpdo->getTableMeta($className);
+            $tableType= isset($tableMeta['engine']) ? $tableMeta['engine'] : 'MyISAM';
             $numerics= array_merge($this->dbtypes['integer'], $this->dbtypes['boolean'], $this->dbtypes['float']);
             $datetimeStrings= array_merge($this->dbtypes['timestamp'], $this->dbtypes['datetime']);
             $dateStrings= $this->dbtypes['date'];
@@ -171,10 +170,11 @@ class xPDOManager_mysql extends xPDOManager {
             $lobs= array ('TEXT', 'BLOB');
             $lobsPattern= '/(' . implode('|', $lobs) . ')/';
             $sql= 'CREATE TABLE ' . $tableName . ' (';
-            while (list($key, $meta)= each($instance->_fieldMeta)) {
+            $fieldMeta = $this->xpdo->getFieldMeta($className);
+            while (list($key, $meta)= each($fieldMeta)) {
                 $dbtype= strtoupper($meta['dbtype']);
                 $precision= isset ($meta['precision']) ? '(' . $meta['precision'] . ')' : '';
-                $notNull= !isset ($meta['null']) 
+                $notNull= !isset ($meta['null'])
                     ? false
                     : ($meta['null'] === 'false' || empty($meta['null']));
                 $null= $notNull ? ' NOT NULL' : ' NULL';
@@ -284,11 +284,11 @@ class xPDOManager_mysql extends xPDOManager {
             }
             $sql .= ") TYPE={$tableType}";
             $created= $this->xpdo->exec($sql);
-            if (!$created && $this->xpdo->errorCode() !== '' && $this->xpdo->errorCode() !== PDO_ERR_NONE) {
-                $this->xpdo->log(XPDO_LOG_LEVEL_ERROR, 'Could not create table ' . $tableName . "\nSQL: {$sql}\nERROR: " . print_r($this->xpdo->pdo->errorInfo(), true));
+            if (!$created && $this->xpdo->errorCode() !== '' && $this->xpdo->errorCode() !== PDO::ERR_NONE) {
+                $this->xpdo->log(xPDO::LOG_LEVEL_ERROR, 'Could not create table ' . $tableName . "\nSQL: {$sql}\nERROR: " . print_r($this->xpdo->errorInfo(), true));
             } else {
                 $created= true;
-                $this->xpdo->log(XPDO_LOG_LEVEL_INFO, 'Created table' . $tableName . "\nSQL: {$sql}\n");
+                $this->xpdo->log(xPDO::LOG_LEVEL_INFO, 'Created table' . $tableName . "\nSQL: {$sql}\n");
             }
         }
         return $created;
